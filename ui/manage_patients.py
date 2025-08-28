@@ -243,8 +243,20 @@ class ManagePatientsWindow(QMainWindow):
         self._install_header_filter_buttons()
         self.table.selectionModel().selectionChanged.connect(self._on_select)
 
-        # Pagination footer (rows/page)
-        foot = QHBoxLayout(); foot.addStretch(1)
+        # Footer bar: import/export buttons on the left, pagination on the right
+        footer = QHBoxLayout()
+
+        # Import/export actions
+        self.btn_import  = QPushButton("⬆  Import CSV");  self.btn_import.setObjectName("btnBlueFlat")
+        self.btn_export_page = QPushButton("⬇  Export CSV (page)"); self.btn_export_page.setObjectName("btnBlueFlat")
+        self.btn_export_all  = QPushButton("⬇  Export CSV (all filtered)"); self.btn_export_all.setObjectName("btnBlueFlat")
+        self.btn_template = QPushButton("📄  Get CSV Template"); self.btn_template.setObjectName("btnGreyFlat")
+        for b in (self.btn_import, self.btn_export_page, self.btn_export_all, self.btn_template):
+            footer.addWidget(b)
+
+        footer.addStretch(1)
+
+        # Pagination controls (rows/page)
         lbl_rpp = QLabel("Rows/page")
         self.e_page_size = QLineEdit("25"); self.e_page_size.setFixedWidth(48); self.e_page_size.setAlignment(Qt.AlignCenter)
         self.btn_prev = QPushButton("« Prev")
@@ -268,21 +280,11 @@ class ManagePatientsWindow(QMainWindow):
         self.btn_next.clicked.connect(lambda: (self.page_proxy.set_page(self.page_proxy.page()+1),
                                               self._update_pagination_labels()))
 
-        foot.addWidget(lbl_rpp); foot.addWidget(self.e_page_size); foot.addSpacing(12)
-        foot.addWidget(self.btn_prev); foot.addWidget(self.lbl_page); foot.addWidget(self.btn_next)
-        foot.addSpacing(16); foot.addWidget(self.lbl_range)
-        lv.addLayout(foot)
+        footer.addWidget(lbl_rpp); footer.addWidget(self.e_page_size); footer.addSpacing(12)
+        footer.addWidget(self.btn_prev); footer.addWidget(self.lbl_page); footer.addWidget(self.btn_next)
+        footer.addSpacing(16); footer.addWidget(self.lbl_range)
 
-        # Import/export actions (below pagination)
-        actions = QHBoxLayout()
-        self.btn_import  = QPushButton("⬆  Import CSV");  self.btn_import.setObjectName("btnBlueFlat")
-        self.btn_export_page = QPushButton("⬇  Export CSV (page)"); self.btn_export_page.setObjectName("btnBlueFlat")
-        self.btn_export_all  = QPushButton("⬇  Export CSV (all filtered)"); self.btn_export_all.setObjectName("btnBlueFlat")
-        self.btn_template = QPushButton("📄  Get CSV Template"); self.btn_template.setObjectName("btnGreyFlat")
-        for b in (self.btn_import, self.btn_export_page, self.btn_export_all, self.btn_template):
-            actions.addWidget(b)
-        actions.addStretch(1)
-        lv.addLayout(actions)
+        lv.addLayout(footer)
 
         # Right form
         form_wrap = QFrame(); form_wrap.setObjectName("card")
