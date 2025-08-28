@@ -3,13 +3,11 @@ import sys, csv
 from pathlib import Path
 from datetime import date, datetime
 
-from PySide6.QtCore import Qt, QSortFilterProxyModel, QModelIndex, QTimer, QDate, QSize, QPoint
-from PySide6.QtGui import QIcon, QPixmap, QPainter, QPen, QColor, QFont, QPolygon
+from PySide6.QtCore import Qt, QSortFilterProxyModel, QModelIndex, QTimer, QDate
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTableView,
     QPushButton, QLineEdit, QLabel, QFormLayout, QSplitter, QPlainTextEdit,
-    QAbstractItemView, QDialog, QListWidget, QListWidgetItem, QDialogButtonBox,
-    QFileDialog, QStatusBar, QFrame, QDateEdit, QMessageBox
+    QAbstractItemView, QFileDialog, QStatusBar, QFrame, QDateEdit, QMessageBox
 )
 
 # absolute imports (project root)
@@ -25,15 +23,11 @@ DB_PATH = APP_DIR / "patients.db"
 CSV_HEADERS = ["cin", "first_name", "last_name", "birth_date", "phone", "email", "notes"]
 
 PALETTE = {
-    "sidebar": "#2563EB",   # blue (inspired by your screenshot)
-    "sidebar_text": "#FFFFFF",
     "blue": "#2563EB",
     "green": "#22C55E",
     "red": "#EF4444",
-    "muted": "#94A3B8",
-    "card": "#FFFFFF",
-    "border": "#E5E7EB",
-    "surface": "#F8FAFC",
+    "border": "#FFFFFF",
+    "muted": "#FFFFFF",
 }
 
 
@@ -186,7 +180,6 @@ class ManagePatientsWindow(QMainWindow):
         self.s = session
         self.repo = PatientRepo(self.s)
         self.current_patient_id: int | None = None
-        self._funnel_icon = self._make_funnel_icon()
 
         self._build_ui()
         self._install_styles()
@@ -239,24 +232,14 @@ class ManagePatientsWindow(QMainWindow):
         self.table.sortByColumn(2, Qt.AscendingOrder)  # default sort by First name
         lv.addWidget(self.table, 1)
 
-        # install header filter buttons (Excel-like) + stacked sort icon
-        self._install_header_filter_buttons()
+        # remove header filter buttons
         self.table.selectionModel().selectionChanged.connect(self._on_select)
 
-        # Footer bar: import/export buttons on the left, pagination on the right
-        footer = QHBoxLayout()
-
-        # Import/export actions
-        self.btn_import  = QPushButton("⬆  Import CSV");  self.btn_import.setObjectName("btnBlueFlat")
-        self.btn_export_page = QPushButton("⬇  Export CSV (page)"); self.btn_export_page.setObjectName("btnBlueFlat")
-        self.btn_export_all  = QPushButton("⬇  Export CSV (all filtered)"); self.btn_export_all.setObjectName("btnBlueFlat")
-        self.btn_template = QPushButton("📄  Get CSV Template"); self.btn_template.setObjectName("btnGreyFlat")
-        for b in (self.btn_import, self.btn_export_page, self.btn_export_all, self.btn_template):
-            footer.addWidget(b)
-
-        footer.addStretch(1)
+        # Footer: pagination row then export row (both left aligned)
+        footer = QVBoxLayout()
 
         # Pagination controls (rows/page)
+        pag_row = QHBoxLayout()
         lbl_rpp = QLabel("Rows/page")
         self.e_page_size = QLineEdit("25"); self.e_page_size.setFixedWidth(48); self.e_page_size.setAlignment(Qt.AlignCenter)
         self.btn_prev = QPushButton("« Prev")
@@ -280,9 +263,22 @@ class ManagePatientsWindow(QMainWindow):
         self.btn_next.clicked.connect(lambda: (self.page_proxy.set_page(self.page_proxy.page()+1),
                                               self._update_pagination_labels()))
 
-        footer.addWidget(lbl_rpp); footer.addWidget(self.e_page_size); footer.addSpacing(12)
-        footer.addWidget(self.btn_prev); footer.addWidget(self.lbl_page); footer.addWidget(self.btn_next)
-        footer.addSpacing(16); footer.addWidget(self.lbl_range)
+        pag_row.addWidget(lbl_rpp); pag_row.addWidget(self.e_page_size); pag_row.addSpacing(12)
+        pag_row.addWidget(self.btn_prev); pag_row.addWidget(self.lbl_page); pag_row.addWidget(self.btn_next)
+        pag_row.addSpacing(16); pag_row.addWidget(self.lbl_range)
+        pag_row.addStretch(1)
+        footer.addLayout(pag_row)
+
+        # Import/export actions
+        exp_row = QHBoxLayout()
+        self.btn_import  = QPushButton("⬆  Import CSV");  self.btn_import.setObjectName("btnBlueFlat")
+        self.btn_export_page = QPushButton("⬇  Export CSV (page)"); self.btn_export_page.setObjectName("btnBlueFlat")
+        self.btn_export_all  = QPushButton("⬇  Export CSV (all filtered)"); self.btn_export_all.setObjectName("btnBlueFlat")
+        self.btn_template = QPushButton("📄  Get CSV Template"); self.btn_template.setObjectName("btnGreyFlat")
+        for b in (self.btn_import, self.btn_export_page, self.btn_export_all, self.btn_template):
+            exp_row.addWidget(b)
+        exp_row.addStretch(1)
+        footer.addLayout(exp_row)
 
         lv.addLayout(footer)
 
@@ -305,7 +301,7 @@ class ManagePatientsWindow(QMainWindow):
         form.addRow("Email",        self.e_email)
         form.addRow("Notes",        self.e_notes)
 
-        split = QSplitter(); split.addWidget(left); split.addWidget(form_wrap)
+        split = QSplitter(Qt.Horizontal); split.addWidget(left); split.addWidget(form_wrap)
         split.setStretchFactor(0, 5); split.setStretchFactor(1, 4)
         mv.addWidget(split, 3)
 
@@ -329,41 +325,35 @@ class ManagePatientsWindow(QMainWindow):
     # ----- Styles -----
     def _install_styles(self):
         self.setStyleSheet(f"""
-        QWidget {{ background:{PALETTE['surface']}; }}
-        QFrame#sidebar {{ background:{PALETTE['sidebar']}; color:{PALETTE['sidebar_text']}; }}
+        QWidget {{ background:{PALETTE['blue']}; color:white; }}
+        QFrame#sidebar {{ background:{PALETTE['blue']}; color:white; }}
         QLabel#section {{ color:white; font-weight:700; margin-bottom:8px; }}
         QPushButton#navActive {{
-            background:{PALETTE['sidebar']}; color:white; border:0; text-align:left; padding:12px 14px;
+            background:{PALETTE['blue']}; color:white; border:0; text-align:left; padding:12px 14px;
             border-radius:10px; font-weight:700;
         }}
-        QPushButton#navDisabled {{ background:{PALETTE['sidebar']}; color:rgba(255,255,255,0.65);
+        QPushButton#navDisabled {{ background:{PALETTE['blue']}; color:rgba(255,255,255,0.65);
             border:0; text-align:left; padding:12px 14px; border-radius:10px; }}
 
-        QFrame#card {{ background:{PALETTE['card']}; border:1px solid {PALETTE['border']}; border-radius:12px; }}
+        QFrame#card {{ background:{PALETTE['blue']}; border:1px solid {PALETTE['border']}; border-radius:12px; }}
         QLabel#muted {{ color:{PALETTE['muted']}; }}
-        QTableView {{ gridline-color:{PALETTE['border']}; selection-background-color:#E3F2FD; }}
+        QTableView {{ gridline-color:{PALETTE['border']}; selection-background-color:#1E3A8A; color:white; }}
+        QHeaderView::section {{ background:{PALETTE['blue']}; color:white; }}
+        QLineEdit, QPlainTextEdit {{ background:#1E40AF; color:white; border:1px solid {PALETTE['border']}; }}
 
         QPushButton#btnGreen {{ background:{PALETTE['green']}; color:white; border:0; border-radius:10px; padding:10px 16px; font-weight:700; }}
         QPushButton#btnBlue  {{ background:{PALETTE['blue']};  color:white; border:0; border-radius:10px; padding:10px 16px; font-weight:700; }}
         QPushButton#btnRed   {{ background:{PALETTE['red']};   color:white; border:0; border-radius:10px; padding:10px 16px; font-weight:700; }}
 
         QPushButton#btnBlueFlat {{
-            background: transparent; color: {PALETTE['blue']}; border: 1px solid {PALETTE['blue']};
+            background: transparent; color: white; border: 1px solid white;
             border-radius: 8px; padding: 6px 10px; font-weight: 600;
         }}
-        QPushButton#btnBlueFlat:hover {{ background: rgba(37,99,235,0.08); }}
+        QPushButton#btnBlueFlat:hover {{ background: rgba(255,255,255,0.1); }}
         QPushButton#btnGreyFlat {{
-            background: #eceff1; color: #37474F; border: 1px solid #cfd8dc;
-            border-radius: 8px; padding: 6px 10px; font-weight: 600;
+            background: transparent; color:white; border:1px solid white;
+            border-radius:8px; padding:6px 10px; font-weight:600;
         }}
-
-        QPushButton#hdrFilterBtn {{
-            border: 0; background: transparent; padding: 0; min-width: 18px; min-height: 18px;
-        }}
-        QPushButton#hdrFilterBtn[active="true"] {{
-            background: rgba(37,99,235,0.16); border-radius: 4px;
-        }}
-        QLabel#hdrSortLbl {{ color: #6b7280; font-size: 10px; }}
         """)
 
     # ----- Data flow -----
@@ -389,24 +379,17 @@ class ManagePatientsWindow(QMainWindow):
         page = self.page_proxy.page()
         size = self.page_proxy.page_size()
         total_all = self.base_model.rowCount()
-        total_filtered = self.filter_proxy.rowCount()
         start = (page - 1) * size
-        end = min(start + size, total_filtered)
+        end = min(start + size, total_all)
 
         self.lbl_page.setText(f"Page {page} / {tp}")
-        if total_filtered == 0:
-            self.lbl_range.setText(f"Showing 0 of 0 (filtered from {total_all})")
+        if total_all == 0:
+            self.lbl_range.setText("Showing 0 of 0")
         else:
-            self.lbl_range.setText(f"Showing {start+1}–{end} of {total_filtered} (filtered from {total_all})")
+            self.lbl_range.setText(f"Showing {start+1}–{end} of {total_all}")
 
         self.btn_prev.setEnabled(page > 1)
         self.btn_next.setEnabled(page < tp)
-
-        # header filter active-state highlight
-        for col, btn in self._hdr_btns.items():
-            active = "true" if col in self.filter_proxy.include_values or (col == 4 and (self.filter_proxy.f_birth_from or self.filter_proxy.f_birth_to)) else "false"
-            btn.setProperty("active", active)
-            btn.style().unpolish(btn); btn.style().polish(btn)
 
     # ----- Selection & form -----
     def _on_select(self, *_):
@@ -615,117 +598,6 @@ class ManagePatientsWindow(QMainWindow):
                             e["birth_date"],e["phone"],e["email"],e["notes"]])
         self._msg_info("Saved", f"Error report saved to:\n{path}")
 
-    # ----- Header filter buttons (stacked: sort label + funnel button) -----
-    def _install_header_filter_buttons(self):
-        header = self.table.horizontalHeader()
-        self._hdr_btns: dict[int, QPushButton] = {}
-        self._hdr_sorts: dict[int, QLabel] = {}
-
-        for col in range(self.table.model().columnCount()):
-            # filter button (bottom-right)
-            fbtn = QPushButton("", header.viewport())
-            fbtn.setObjectName("hdrFilterBtn")
-            fbtn.setIcon(self._funnel_icon)
-            fbtn.setIconSize(QSize(14, 14))
-            fbtn.setFixedSize(18, 18)
-            fbtn.clicked.connect(lambda _, c=col: self._open_filter_popup(c))
-            self._hdr_btns[col] = fbtn
-
-            # sort label (top-right)
-            slbl = QLabel("⇅", header.viewport())
-            slbl.setObjectName("hdrSortLbl")
-            slbl.setAlignment(Qt.AlignCenter)
-            slbl.setFixedSize(18, 12)
-            self._hdr_sorts[col] = slbl
-
-        def reposition():
-            for c in range(self.table.model().columnCount()):
-                pos = header.sectionPosition(c)
-                width = header.sectionSize(c)
-                x_right = pos + width - 18
-                self._hdr_sorts[c].move(x_right, 0)                               # top-right
-                self._hdr_btns[c].move(x_right, header.height() - 18 - 2)         # bottom-right
-                self._hdr_sorts[c].raise_(); self._hdr_btns[c].raise_()
-
-        header.sectionResized.connect(reposition)
-        header.geometriesChanged.connect(reposition)
-        reposition()
-
-    def _open_filter_popup(self, col: int):
-        dlg = QDialog(self); dlg.setWindowTitle("Filter")
-        lay = QVBoxLayout(dlg)
-
-        # Birth date column (date range)
-        if col == 4:
-            from_lbl, to_lbl = QLabel("From"), QLabel("To")
-            from_d, to_d = DateField(), DateField()
-            from_d.set_date(self.filter_proxy.f_birth_from)
-            to_d.set_date(self.filter_proxy.f_birth_to)
-            hl = QHBoxLayout(); hl.addWidget(from_lbl); hl.addWidget(from_d); hl.addWidget(to_lbl); hl.addWidget(to_d)
-            lay.addLayout(hl)
-
-            btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel | QDialogButtonBox.Reset)
-            lay.addWidget(btns)
-
-            def accept():
-                self.filter_proxy.set_filters(
-                    cin=self.filter_proxy.f_cin, first=self.filter_proxy.f_first, last=self.filter_proxy.f_last,
-                    phone=self.filter_proxy.f_phone, email=self.filter_proxy.f_email,
-                    birth_from=from_d.get_date(), birth_to=to_d.get_date()
-                )
-                self.page_proxy.set_page(1); self._update_pagination_labels(); dlg.accept()
-
-            def reset():
-                self.filter_proxy.set_filters(
-                    cin=self.filter_proxy.f_cin, first=self.filter_proxy.f_first, last=self.filter_proxy.f_last,
-                    phone=self.filter_proxy.f_phone, email=self.filter_proxy.f_email,
-                    birth_from=None, birth_to=None
-                )
-                self.page_proxy.set_page(1); self._update_pagination_labels()
-
-            btns.accepted.connect(accept); btns.rejected.connect(dlg.reject)
-            btns.button(QDialogButtonBox.Reset).clicked.connect(reset)
-
-        else:
-            lst = QListWidget(dlg); lst.setSelectionMode(QListWidget.MultiSelection)
-            seen = []
-            # Build unique values from the CURRENT filtered set (so users can refine)
-            for r in range(self.filter_proxy.rowCount()):
-                idx = self.filter_proxy.index(r, col)
-                val = self.filter_proxy.data(idx, Qt.DisplayRole) or ""
-                sval = str(val)
-                if sval not in seen: seen.append(sval)
-            for v in seen:
-                it = QListWidgetItem(v or "(blank)")
-                it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
-                cur = self.filter_proxy.include_values.get(col)
-                checked = (not cur) or ((v in cur) if v else ("" in cur))
-                it.setCheckState(Qt.Checked if checked else Qt.Unchecked)
-                lst.addItem(it)
-            lay.addWidget(lst)
-
-            btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel | QDialogButtonBox.Reset)
-            lay.addWidget(btns)
-
-            def accept():
-                chosen = set()
-                for i in range(lst.count()):
-                    item = lst.item(i)
-                    if item.checkState() == Qt.Checked:
-                        chosen.add("" if item.text() == "(blank)" else item.text())
-                if len(chosen) == lst.count(): chosen = set()  # all checked => clear restriction
-                self.filter_proxy.set_inclusion_values(col, chosen if chosen else None)
-                self.page_proxy.set_page(1); self._update_pagination_labels(); dlg.accept()
-
-            def reset():
-                self.filter_proxy.set_inclusion_values(col, None)
-                self.page_proxy.set_page(1); self._update_pagination_labels()
-
-            btns.accepted.connect(accept); btns.rejected.connect(dlg.reject)
-            btns.button(QDialogButtonBox.Reset).clicked.connect(reset)
-
-        dlg.exec()
-
     # ----- dialogs -----
     def _msg_info(self, title, text): QMessageBox.information(self, title, text)
     def _msg_warn(self, title, text): QMessageBox.warning(self, title, text)
@@ -733,40 +605,6 @@ class ManagePatientsWindow(QMainWindow):
     def _confirm(self, title, text, yes_no=False):
         btns = QMessageBox.Yes | QMessageBox.No if yes_no else QMessageBox.Yes | QMessageBox.No
         return QMessageBox.question(self, title, text, btns) == QMessageBox.Yes
-
-    # ----- tiny icon painter -----
-    def _make_funnel_icon(self, size: int = 16, color: str = "#6b7280") -> QIcon:
-        pm = QPixmap(size, size)
-        pm.fill(Qt.transparent)
-
-        painter = QPainter(pm)
-        painter.setRenderHint(QPainter.Antialiasing)
-        col = QColor(color)
-        painter.setPen(Qt.NoPen)
-        painter.setBrush(col)
-
-        # Funnel shape (top wide, narrowing to a short stem)
-        top = 3
-        left = 3
-        right = size - 3
-        mid_y = int(size * 0.55)
-        stem_top_x1 = int(size * 0.45)
-        stem_top_x2 = int(size * 0.55)
-        bottom = size - 3
-
-        poly = QPolygon([
-            QPoint(left, top),  # top-left
-            QPoint(right, top),  # top-right
-            QPoint(stem_top_x2, mid_y),  # right slope to throat
-            QPoint(stem_top_x2, bottom),  # stem right
-            QPoint(stem_top_x1, bottom),  # stem left
-            QPoint(stem_top_x1, mid_y),  # left slope back to throat
-        ])
-
-        painter.drawPolygon(poly)
-        painter.end()
-        return QIcon(pm)
-
 
 # ---- entrypoint (adds CIN unique index if missing) ----
 def run():
