@@ -214,17 +214,6 @@ class ManagePatientsWindow(QMainWindow):
         main = QWidget(); mv = QVBoxLayout(main); mv.setContentsMargins(12,12,12,12); mv.setSpacing(10)
         root.addWidget(main, 1)
 
-        # Top actions (linked to current table state)
-        actions = QHBoxLayout()
-        self.btn_import  = QPushButton("⬆  Import CSV");  self.btn_import.setObjectName("btnBlueFlat")
-        self.btn_export_page = QPushButton("⬇  Export CSV (page)"); self.btn_export_page.setObjectName("btnBlueFlat")
-        self.btn_export_all  = QPushButton("⬇  Export CSV (all filtered)"); self.btn_export_all.setObjectName("btnBlueFlat")
-        self.btn_template = QPushButton("📄  Get CSV Template"); self.btn_template.setObjectName("btnGreyFlat")
-        for b in (self.btn_import, self.btn_export_page, self.btn_export_all, self.btn_template):
-            actions.addWidget(b)
-        actions.addStretch(1)
-        mv.addLayout(actions)
-
         # Global search
         top = QHBoxLayout(); lbl = QLabel("Search:"); lbl.setObjectName("muted")
         self.search = QLineEdit(); self.search.setPlaceholderText("Search any field …")
@@ -232,10 +221,13 @@ class ManagePatientsWindow(QMainWindow):
         top.addWidget(lbl); top.addWidget(self.search, 1)
         mv.addLayout(top)
 
-        # Table (with built-in vertical scrollbar)
+        # Table models
         self.base_model = PatientTableModel([])
         self.filter_proxy = PatientFilterProxy(); self.filter_proxy.setSourceModel(self.base_model)
         self.page_proxy = PageProxy(); self.page_proxy.setSourceModel(self.filter_proxy)
+
+        # Left column with table + pagination + import/export actions
+        left = QWidget(); lv = QVBoxLayout(left); lv.setContentsMargins(0,0,0,0); lv.setSpacing(6)
 
         self.table = QTableView()
         self.table.setModel(self.page_proxy)
@@ -245,13 +237,13 @@ class ManagePatientsWindow(QMainWindow):
         self.table.verticalHeader().setVisible(False)
         self.table.setSortingEnabled(True)
         self.table.sortByColumn(2, Qt.AscendingOrder)  # default sort by First name
-        mv.addWidget(self.table, 1)
+        lv.addWidget(self.table, 1)
 
         # install header filter buttons (Excel-like) + stacked sort icon
         self._install_header_filter_buttons()
         self.table.selectionModel().selectionChanged.connect(self._on_select)
 
-        # Pagination footer
+        # Pagination footer (rows/page)
         foot = QHBoxLayout(); foot.addStretch(1)
         lbl_rpp = QLabel("Rows/page")
         self.e_page_size = QLineEdit("25"); self.e_page_size.setFixedWidth(48); self.e_page_size.setAlignment(Qt.AlignCenter)
@@ -279,9 +271,20 @@ class ManagePatientsWindow(QMainWindow):
         foot.addWidget(lbl_rpp); foot.addWidget(self.e_page_size); foot.addSpacing(12)
         foot.addWidget(self.btn_prev); foot.addWidget(self.lbl_page); foot.addWidget(self.btn_next)
         foot.addSpacing(16); foot.addWidget(self.lbl_range)
-        mv.addLayout(foot)
+        lv.addLayout(foot)
 
-        # Right form (splitter)
+        # Import/export actions (below pagination)
+        actions = QHBoxLayout()
+        self.btn_import  = QPushButton("⬆  Import CSV");  self.btn_import.setObjectName("btnBlueFlat")
+        self.btn_export_page = QPushButton("⬇  Export CSV (page)"); self.btn_export_page.setObjectName("btnBlueFlat")
+        self.btn_export_all  = QPushButton("⬇  Export CSV (all filtered)"); self.btn_export_all.setObjectName("btnBlueFlat")
+        self.btn_template = QPushButton("📄  Get CSV Template"); self.btn_template.setObjectName("btnGreyFlat")
+        for b in (self.btn_import, self.btn_export_page, self.btn_export_all, self.btn_template):
+            actions.addWidget(b)
+        actions.addStretch(1)
+        lv.addLayout(actions)
+
+        # Right form
         form_wrap = QFrame(); form_wrap.setObjectName("card")
         form = QFormLayout(form_wrap)
         self.e_id = QLineEdit(); self.e_id.setReadOnly(True)
@@ -300,7 +303,7 @@ class ManagePatientsWindow(QMainWindow):
         form.addRow("Email",        self.e_email)
         form.addRow("Notes",        self.e_notes)
 
-        split = QSplitter(); split.addWidget(self.table); split.addWidget(form_wrap)
+        split = QSplitter(); split.addWidget(left); split.addWidget(form_wrap)
         split.setStretchFactor(0, 5); split.setStretchFactor(1, 4)
         mv.addWidget(split, 3)
 
@@ -326,12 +329,12 @@ class ManagePatientsWindow(QMainWindow):
         self.setStyleSheet(f"""
         QWidget {{ background:{PALETTE['surface']}; }}
         QFrame#sidebar {{ background:{PALETTE['sidebar']}; color:{PALETTE['sidebar_text']}; }}
-        QLabel#section {{ color:#DCE7FF; font-weight:700; margin-bottom:8px; }}
+        QLabel#section {{ color:white; font-weight:700; margin-bottom:8px; }}
         QPushButton#navActive {{
-            background:rgba(255,255,255,0.10); color:white; border:0; text-align:left; padding:12px 14px;
+            background:{PALETTE['sidebar']}; color:white; border:0; text-align:left; padding:12px 14px;
             border-radius:10px; font-weight:700;
         }}
-        QPushButton#navDisabled {{ background:transparent; color:rgba(255,255,255,0.65);
+        QPushButton#navDisabled {{ background:{PALETTE['sidebar']}; color:rgba(255,255,255,0.65);
             border:0; text-align:left; padding:12px 14px; border-radius:10px; }}
 
         QFrame#card {{ background:{PALETTE['card']}; border:1px solid {PALETTE['border']}; border-radius:12px; }}
