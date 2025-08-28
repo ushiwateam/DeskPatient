@@ -3,7 +3,7 @@ import sys, csv
 from pathlib import Path
 from datetime import date, datetime
 
-from PySide6.QtCore import Qt, QSortFilterProxyModel, QModelIndex, QTimer, QDate, QIdentityProxyModel
+from PySide6.QtCore import Qt, QSortFilterProxyModel, QModelIndex, QTimer, QDate
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QTableView,
     QPushButton, QLineEdit, QLabel, QFormLayout, QSplitter, QPlainTextEdit,
@@ -146,61 +146,27 @@ class PatientFilterProxy(QSortFilterProxyModel):
 
 # ------------------ Pagination proxy ------------------
 
-class PageProxy(QIdentityProxyModel):
-    """Proxy model handling pagination after sorting."""
+class PageProxy(QSortFilterProxyModel):
     def __init__(self):
         super().__init__()
         self._page = 1
         self._page_size = 25
 
-    # ---- pagination helpers ----
-    def _invalidate(self):
-        self.beginResetModel()
-        self.endResetModel()
-
     def set_page(self, page: int):
-        self._page = max(1, page)
-        self._invalidate()
-
+        self._page = max(1, page); self.invalidateFilter()
     def set_page_size(self, size: int):
-        self._page_size = max(1, size)
-        self._invalidate()
-
-    def page(self) -> int:
-        return self._page
-
-    def page_size(self) -> int:
-        return self._page_size
-
-    def total_rows(self) -> int:
-        return self.sourceModel().rowCount() if self.sourceModel() else 0
-
+        self._page_size = max(1, size); self.invalidateFilter()
+    def page(self) -> int: return self._page
+    def page_size(self) -> int: return self._page_size
+    def total_rows(self) -> int: return self.sourceModel().rowCount() if self.sourceModel() else 0
     def total_pages(self) -> int:
         n, k = self.total_rows(), self._page_size
         return max(1, (n + k - 1) // k)
 
-    # ---- QIdentityProxyModel API ----
-    def rowCount(self, parent=QModelIndex()) -> int:
-        if parent.isValid() or not self.sourceModel():
-            return 0
+    def filterAcceptsRow(self, source_row: int, parent: QModelIndex) -> bool:
         start = (self._page - 1) * self._page_size
-        total = self.total_rows()
-        return max(0, min(self._page_size, total - start))
-
-    def mapToSource(self, proxyIndex: QModelIndex) -> QModelIndex:
-        if not proxyIndex.isValid() or not self.sourceModel():
-            return QModelIndex()
-        row = proxyIndex.row() + (self._page - 1) * self._page_size
-        return self.sourceModel().index(row, proxyIndex.column())
-
-    def mapFromSource(self, sourceIndex: QModelIndex) -> QModelIndex:
-        if not sourceIndex.isValid() or not self.sourceModel():
-            return QModelIndex()
-        start = (self._page - 1) * self._page_size
-        row = sourceIndex.row() - start
-        if 0 <= row < self._page_size:
-            return self.index(row, sourceIndex.column())
-        return QModelIndex()
+        end = start + self._page_size
+        return start <= source_row < end
 
 
 # ------------------ Main Window ------------------
@@ -359,15 +325,34 @@ class ManagePatientsWindow(QMainWindow):
     # ----- Styles -----
     def _install_styles(self):
         self.setStyleSheet(f"""
+        QWidget {{ background:{PALETTE['blue']}; color:white; }}
         QFrame#sidebar {{ background:{PALETTE['blue']}; color:white; }}
         QLabel#section {{ color:white; font-weight:700; margin-bottom:8px; }}
         QPushButton#navActive {{
             background:{PALETTE['blue']}; color:white; border:0; text-align:left; padding:12px 14px;
             border-radius:10px; font-weight:700;
         }}
-        QPushButton#navDisabled {{
-            background:{PALETTE['blue']}; color:rgba(255,255,255,0.65);
-            border:0; text-align:left; padding:12px 14px; border-radius:10px;
+        QPushButton#navDisabled {{ background:{PALETTE['blue']}; color:rgba(255,255,255,0.65);
+            border:0; text-align:left; padding:12px 14px; border-radius:10px; }}
+
+        QFrame#card {{ background:{PALETTE['blue']}; border:1px solid {PALETTE['border']}; border-radius:12px; }}
+        QLabel#muted {{ color:{PALETTE['muted']}; }}
+        QTableView {{ gridline-color:{PALETTE['border']}; selection-background-color:#1E3A8A; color:white; }}
+        QHeaderView::section {{ background:{PALETTE['blue']}; color:white; }}
+        QLineEdit, QPlainTextEdit {{ background:#1E40AF; color:white; border:1px solid {PALETTE['border']}; }}
+
+        QPushButton#btnGreen {{ background:{PALETTE['green']}; color:white; border:0; border-radius:10px; padding:10px 16px; font-weight:700; }}
+        QPushButton#btnBlue  {{ background:{PALETTE['blue']};  color:white; border:0; border-radius:10px; padding:10px 16px; font-weight:700; }}
+        QPushButton#btnRed   {{ background:{PALETTE['red']};   color:white; border:0; border-radius:10px; padding:10px 16px; font-weight:700; }}
+
+        QPushButton#btnBlueFlat {{
+            background: transparent; color: white; border: 1px solid white;
+            border-radius: 8px; padding: 6px 10px; font-weight: 600;
+        }}
+        QPushButton#btnBlueFlat:hover {{ background: rgba(255,255,255,0.1); }}
+        QPushButton#btnGreyFlat {{
+            background: transparent; color:white; border:1px solid white;
+            border-radius:8px; padding:6px 10px; font-weight:600;
         }}
         """)
 
